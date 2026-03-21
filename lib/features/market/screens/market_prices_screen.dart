@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/api/mandi_service.dart';
 import '../../../core/theme/app_theme.dart';
 
 class MarketPricesScreen extends StatefulWidget {
@@ -9,37 +10,52 @@ class MarketPricesScreen extends StatefulWidget {
 }
 
 class _MarketPricesScreenState extends State<MarketPricesScreen> {
-  String _selectedState = 'Telangana';
-  String _selectedCommodity = 'All';
+  final _service = MandiService();
+
+  String _selectedState = '';
+  String _selectedCommodity = '';
   String _searchQuery = '';
 
-  final _states = ['Telangana', 'Andhra Pradesh', 'Karnataka', 'Maharashtra', 'Punjab'];
-  final _commodities = ['All', 'Paddy', 'Cotton', 'Maize', 'Soybean', 'Wheat'];
-
-  final _prices = [
-    _PriceData('Paddy (Common)', 'Hyderabad', 2183, 2250, 2.0, 'Telangana'),
-    _PriceData('Paddy (Grade A)', 'Warangal', 2203, 2280, 3.5, 'Telangana'),
-    _PriceData('Cotton (Long Staple)', 'Adilabad', 6800, 7100, -2.0, 'Telangana'),
-    _PriceData('Maize', 'Nizamabad', 1600, 1780, 1.2, 'Telangana'),
-    _PriceData('Soybean', 'Karimnagar', 3900, 4200, 0.5, 'Telangana'),
-    _PriceData('Red Chilli', 'Guntur', 8500, 9200, 4.0, 'Andhra Pradesh'),
-    _PriceData('Groundnut', 'Kurnool', 5200, 5800, -1.0, 'Andhra Pradesh'),
-    _PriceData('Wheat', 'Amritsar', 2015, 2100, 0.8, 'Punjab'),
-    _PriceData('Sugarcane', 'Pune', 2850, 3000, 1.5, 'Maharashtra'),
-    _PriceData('Onion', 'Nashik', 1200, 1600, 6.0, 'Maharashtra'),
+  final _states = [
+    '', 'Andhra Pradesh', 'Karnataka', 'Kerala', 'Maharashtra',
+    'Madhya Pradesh', 'Punjab', 'Rajasthan', 'Tamil Nadu', 'Telangana',
+    'Uttar Pradesh', 'West Bengal',
   ];
 
-  List<_PriceData> get _filtered {
-    return _prices.where((p) {
-      final matchState = p.state == _selectedState;
-      final matchCommodity = _selectedCommodity == 'All' ||
-        p.commodity.toLowerCase().contains(_selectedCommodity.toLowerCase());
-      final matchSearch = _searchQuery.isEmpty ||
-        p.commodity.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-        p.market.toLowerCase().contains(_searchQuery.toLowerCase());
-      return matchState && matchCommodity && matchSearch;
-    }).toList();
+  List<MandiPriceDto> _prices = [];
+  bool _loading = false;
+  String? _error;
+  bool _hasLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
   }
+
+  Future<void> _fetch() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final data = await _service.getPrices(
+        state: _selectedState.isEmpty ? null : _selectedState,
+        commodity: _selectedCommodity.isEmpty ? null : _selectedCommodity,
+        limit: 100,
+      );
+      if (mounted) setState(() { _prices = data; _hasLoaded = true; });
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  List<MandiPriceDto> get _filtered => _searchQuery.isEmpty
+    ? _prices
+    : _prices.where((p) =>
+        p.commodity.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+        p.market.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+        p.district.toLowerCase().contains(_searchQuery.toLowerCase())
+      ).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -51,14 +67,13 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
           // Filters
           Container(
             color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
             child: Column(
               children: [
-                // Search
                 TextField(
                   onChanged: (v) => setState(() => _searchQuery = v),
                   decoration: const InputDecoration(
-                    hintText: 'Search commodity or market...',
+                    hintText: 'Search commodity, market, district...',
                     prefixIcon: Icon(Icons.search),
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -68,110 +83,196 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Expanded(child: _DropdownFilter(
-                      label: 'State',
+                    Expanded(child: _StateDropdown(
                       value: _selectedState,
-                      items: _states,
-                      onChanged: (v) => setState(() => _selectedState = v!),
+                      states: _states,
+                      onChanged: (v) {
+                        setState(() => _selectedState = v ?? '');
+                        _fetch();
+                      },
                     )),
-                    const SizedBox(width: 12),
-                    Expanded(child: _DropdownFilter(
-                      label: 'Commodity',
+                    const SizedBox(width: 10),
+                    Expanded(child: _CommodityField(
                       value: _selectedCommodity,
-                      items: _commodities,
-                      onChanged: (v) => setState(() => _selectedCommodity = v!),
+                      onSubmitted: (v) {
+                        setState(() => _selectedCommodity = v);
+                        _fetch();
+                      },
                     )),
                   ],
                 ),
               ],
             ),
           ),
-          // Summary banner
+          // Status bar
           Container(
-            color: AppTheme.primary.withValues(alpha: 0.08),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            color: AppTheme.primary.withValues(alpha: 0.07),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
             child: Row(
               children: [
-                const Icon(Icons.info_outline, size: 14, color: AppTheme.primary),
-                const SizedBox(width: 6),
-                Text('Prices in ₹/quintal · Updated: ${_today()}',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.primary)),
+                const Icon(Icons.info_outline, size: 13, color: AppTheme.primary),
+                const SizedBox(width: 5),
+                const Text('Prices in ₹/quintal · Source: data.gov.in',
+                  style: TextStyle(fontSize: 11, color: AppTheme.primary)),
                 const Spacer(),
-                Text('${_filtered.length} results',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.primary,
-                    fontWeight: FontWeight.bold)),
+                if (_hasLoaded)
+                  Text('${_filtered.length} results',
+                    style: const TextStyle(fontSize: 11, color: AppTheme.primary,
+                      fontWeight: FontWeight.bold)),
               ],
             ),
           ),
-          // Price list
-          Expanded(
-            child: _filtered.isEmpty
-              ? const Center(child: Text('No results found'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _filtered.length,
-                  itemBuilder: (_, i) => _PriceCard(data: _filtered[i]),
-                ),
-          ),
+          // Content
+          Expanded(child: _buildBody()),
         ],
       ),
     );
   }
 
-  String _today() {
-    final now = DateTime.now();
-    return '${now.day}/${now.month}/${now.year}';
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.cloud_off, size: 48, color: Colors.grey),
+              const SizedBox(height: 12),
+              Text('Could not fetch prices', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 6),
+              Text(_error!, style: const TextStyle(fontSize: 12, color: Colors.grey),
+                textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _fetch,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (_filtered.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.store_outlined, size: 48, color: Colors.grey),
+            const SizedBox(height: 12),
+            const Text('No results found'),
+            if (_searchQuery.isEmpty) ...[
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                onPressed: _fetch,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh'),
+              ),
+            ]
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _fetch,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _filtered.length,
+        itemBuilder: (_, i) => _PriceCard(data: _filtered[i]),
+      ),
+    );
   }
 }
 
-class _DropdownFilter extends StatelessWidget {
-  final String label;
+class _StateDropdown extends StatelessWidget {
   final String value;
-  final List<String> items;
+  final List<String> states;
   final void Function(String?) onChanged;
-  const _DropdownFilter({
-    required this.label,
-    required this.value,
-    required this.items,
-    required this.onChanged,
-  });
+  const _StateDropdown({required this.value, required this.states, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       value: value,
       isDense: true,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: const InputDecoration(
+        labelText: 'State',
+        border: OutlineInputBorder(),
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
-      items: items.map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis))).toList(),
+      items: states.map((s) => DropdownMenuItem(
+        value: s,
+        child: Text(s.isEmpty ? 'All States' : s, overflow: TextOverflow.ellipsis),
+      )).toList(),
       onChanged: onChanged,
     );
   }
 }
 
+class _CommodityField extends StatefulWidget {
+  final String value;
+  final void Function(String) onSubmitted;
+  const _CommodityField({required this.value, required this.onSubmitted});
+
+  @override
+  State<_CommodityField> createState() => _CommodityFieldState();
+}
+
+class _CommodityFieldState extends State<_CommodityField> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.value);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _ctrl,
+      onSubmitted: widget.onSubmitted,
+      decoration: const InputDecoration(
+        labelText: 'Commodity',
+        hintText: 'e.g. Paddy',
+        border: OutlineInputBorder(),
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        isDense: true,
+        suffixIcon: Icon(Icons.search, size: 16),
+      ),
+    );
+  }
+}
+
 class _PriceCard extends StatelessWidget {
-  final _PriceData data;
+  final MandiPriceDto data;
   const _PriceCard({required this.data});
 
   @override
   Widget build(BuildContext context) {
-    final isUp = data.change >= 0;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             Container(
-              width: 40, height: 40,
+              width: 42, height: 42,
               decoration: BoxDecoration(
                 color: AppTheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.shopping_basket, color: AppTheme.primary, size: 20),
+              child: const Icon(Icons.shopping_basket, color: AppTheme.primary, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -180,34 +281,35 @@ class _PriceCard extends StatelessWidget {
                 children: [
                   Text(data.commodity,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  if (data.variety.isNotEmpty)
+                    Text(data.variety,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 11)),
                   Row(children: [
-                    const Icon(Icons.location_on, size: 12, color: Colors.grey),
+                    const Icon(Icons.location_on, size: 11, color: Colors.grey),
                     const SizedBox(width: 2),
-                    Text(data.market,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                    Expanded(
+                      child: Text('${data.market}, ${data.district}',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                        overflow: TextOverflow.ellipsis),
+                    ),
                   ]),
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('₹${data.modalPrice}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                Row(
-                  children: [
-                    Icon(isUp ? Icons.arrow_upward : Icons.arrow_downward,
-                      size: 12,
-                      color: isUp ? Colors.green : Colors.red),
-                    Text('${data.change.abs().toStringAsFixed(1)}%',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isUp ? Colors.green : Colors.red,
-                        fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                Text('Min: ₹${data.minPrice}',
+                Text('₹${data.modalPrice.toStringAsFixed(0)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16,
+                    color: AppTheme.primary)),
+                Text('modal',
                   style: TextStyle(color: Colors.grey[500], fontSize: 10)),
+                Text('₹${data.minPrice.toStringAsFixed(0)}–${data.maxPrice.toStringAsFixed(0)}',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 10)),
+                if (data.arrivalDate.isNotEmpty)
+                  Text(data.arrivalDate,
+                    style: TextStyle(color: Colors.grey[400], fontSize: 9)),
               ],
             ),
           ],
@@ -215,15 +317,4 @@ class _PriceCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _PriceData {
-  final String commodity;
-  final String market;
-  final int minPrice;
-  final int modalPrice;
-  final double change;
-  final String state;
-  const _PriceData(this.commodity, this.market, this.minPrice, this.modalPrice,
-      this.change, this.state);
 }

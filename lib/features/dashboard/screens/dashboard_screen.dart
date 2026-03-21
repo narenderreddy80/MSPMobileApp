@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/api/mandi_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../weather/screens/weather_screen.dart';
 import '../../market/screens/market_prices_screen.dart';
@@ -46,7 +47,7 @@ class DashboardScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const WeatherScreen()))),
                 const SizedBox(height: 12),
                 // Market ticker
-                _MarketTickerCard(onTap: () => Navigator.push(context,
+                _MandiTickerCard(onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const MarketPricesScreen()))),
                 const SizedBox(height: 16),
                 // Quick actions
@@ -134,22 +135,38 @@ class _WeatherQuickCard extends StatelessWidget {
   }
 }
 
-class _MarketTickerCard extends StatelessWidget {
+class _MandiTickerCard extends StatefulWidget {
   final VoidCallback onTap;
-  const _MarketTickerCard({required this.onTap});
+  const _MandiTickerCard({required this.onTap});
 
-  final _tickers = const [
-    ('Paddy', '₹2,250', '+2.0%', true),
-    ('Cotton', '₹7,100', '-2.0%', false),
-    ('Maize', '₹1,780', '+1.2%', true),
-    ('Soybean', '₹4,200', '+0.5%', true),
-    ('Red Chilli', '₹9,200', '+4.0%', true),
-  ];
+  @override
+  State<_MandiTickerCard> createState() => _MandiTickerCardState();
+}
+
+class _MandiTickerCardState extends State<_MandiTickerCard> {
+  final _service = MandiService();
+  List<MandiPriceDto> _prices = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await _service.getPrices(limit: 10);
+      if (mounted) setState(() { _prices = data; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -163,49 +180,46 @@ class _MarketTickerCard extends StatelessWidget {
                   Text('Mandi Prices', style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold)),
                   const Spacer(),
-                  Text('View All →',
-                    style: const TextStyle(color: AppTheme.primary, fontSize: 12)),
+                  const Text('View All →',
+                    style: TextStyle(color: AppTheme.primary, fontSize: 12)),
                 ],
               ),
               const SizedBox(height: 12),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: _tickers.map((t) => Container(
-                    margin: const EdgeInsets.only(right: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: (t.$4 ? Colors.green : Colors.red)
-                        .withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: (t.$4 ? Colors.green : Colors.red)
-                          .withValues(alpha: 0.2)),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(t.$1,
-                          style: const TextStyle(fontSize: 11,
-                            fontWeight: FontWeight.bold)),
-                        Text(t.$2,
-                          style: const TextStyle(fontSize: 13,
-                            fontWeight: FontWeight.bold)),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(t.$4 ? Icons.arrow_upward : Icons.arrow_downward,
-                              size: 10,
-                              color: t.$4 ? Colors.green : Colors.red),
-                            Text(t.$3,
-                              style: TextStyle(fontSize: 10,
-                                color: t.$4 ? Colors.green : Colors.red)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  )).toList(),
+              if (_loading)
+                const SizedBox(height: 50,
+                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_prices.isEmpty)
+                const Text('No prices available',
+                  style: TextStyle(color: Colors.grey, fontSize: 12))
+              else
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _prices.map((p) => Container(
+                      margin: const EdgeInsets.only(right: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppTheme.primary.withValues(alpha: 0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(p.commodity,
+                            style: const TextStyle(fontSize: 11,
+                              fontWeight: FontWeight.bold)),
+                          Text('₹${p.modalPrice.toStringAsFixed(0)}',
+                            style: const TextStyle(fontSize: 13,
+                              fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                          Text(p.market,
+                            style: TextStyle(fontSize: 9, color: Colors.grey[600])),
+                        ],
+                      ),
+                    )).toList(),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
