@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/api/mandi_service.dart';
 import '../../../core/theme/app_theme.dart';
+import 'mandi_history_screen.dart';
 
 class MarketPricesScreen extends StatefulWidget {
   const MarketPricesScreen({super.key});
@@ -262,7 +263,17 @@ class _PriceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.push(context, MaterialPageRoute(
+          builder: (_) => MandiHistoryScreen(
+            commodity: data.commodity,
+            market: data.market,
+            variety: data.variety.isNotEmpty ? data.variety : null,
+            state: data.state,
+          ),
+        )),
+        child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
@@ -310,10 +321,19 @@ class _PriceCard extends StatelessWidget {
                 if (data.arrivalDate.isNotEmpty)
                   Text(data.arrivalDate,
                     style: TextStyle(color: Colors.grey[400], fontSize: 9)),
+                const SizedBox(height: 2),
+                const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('History', style: TextStyle(fontSize: 9, color: AppTheme.primary)),
+                    Icon(Icons.chevron_right, size: 12, color: AppTheme.primary),
+                  ],
+                ),
               ],
             ),
           ],
         ),
+      ),
       ),
     );
   }
