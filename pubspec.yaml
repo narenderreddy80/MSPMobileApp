@@ -1,0 +1,50 @@
+name: msp_mobile_app
+description: MSP Farmers Mobile App — AI-powered crop disease detection for Android & iOS.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP & API
+  dio: ^5.7.0
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Navigation
+  go_router: ^14.0.0
+
+  # Local storage (token, prefs)
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.3.2
+
+  # Image picker & camera
+  image_picker: ^1.1.2
+
+  # UI
+  cached_network_image: ^3.4.1
+  shimmer: ^3.0.0
+
+  # Icons & design
+  cupertino_icons: ^1.0.8
+
+  # URL launcher
+  url_launcher: ^6.3.0
+
+  # Utils
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
