@@ -4,6 +4,9 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
 import 'features/home_screen.dart';
+import 'features/history/screens/history_screen.dart';
+import 'features/crops/screens/crops_screen.dart';
+import 'features/advisory/screens/advisory_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +29,9 @@ class MSPFarmersApp extends StatelessWidget {
         '/login':    (_) => const LoginScreen(),
         '/register': (_) => const RegisterScreen(),
         '/home':     (_) => const HomeScreen(),
+        '/history':  (_) => const HistoryScreen(),
+        '/crops':    (_) => const CropsScreen(),
+        '/advisory': (_) => const AdvisoryScreen(),
       },
     );
   }
