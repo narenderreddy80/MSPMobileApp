@@ -142,31 +142,37 @@ List<(String, bool)> farmingAdvisories(WeatherData w) {
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
+// Default location: Hyderabad (used when GPS is unavailable)
+const _defaultLat = 17.385;
+const _defaultLon = 78.4867;
+const _defaultLocationName = 'Hyderabad, Telangana';
+
 class WeatherService {
   final _dio = Dio();
 
-  /// Request location permission and get current GPS position.
-  Future<Position> _getPosition() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) throw Exception('Location services are disabled.');
+  /// Try to get GPS position; returns null if unavailable (no throw).
+  Future<({double lat, double lon, String name})?> _tryGetLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return null;
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        throw Exception('Location permission denied.');
+        permission = await Geolocator.requestPermission();
       }
-    }
-    if (permission == LocationPermission.deniedForever) {
-      throw Exception('Location permission permanently denied. Enable in Settings.');
-    }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) { return null; }
 
-    return Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.low,
-        timeLimit: Duration(seconds: 10),
-      ),
-    );
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.low,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+      return (lat: pos.latitude, lon: pos.longitude, name: '');
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Reverse geocode lat/lon to a human-readable name via Nominatim.
@@ -189,35 +195,41 @@ class WeatherService {
     }
   }
 
-  /// Fetch full weather data for the device's current location.
+  /// Fetch full weather data. Falls back to Hyderabad if GPS unavailable.
   Future<WeatherData> fetchWeather() async {
-    final pos = await _getPosition();
-    final lat = pos.latitude;
-    final lon = pos.longitude;
+    final gps = await _tryGetLocation();
 
-    // Run Open-Meteo + Nominatim in parallel
-    final results = await Future.wait([
-      _dio.get(
-        'https://api.open-meteo.com/v1/forecast',
-        queryParameters: {
-          'latitude': lat,
-          'longitude': lon,
-          'current': 'temperature_2m,relative_humidity_2m,apparent_temperature,'
-              'precipitation,weather_code,wind_speed_10m,wind_direction_10m,uv_index',
-          'daily': 'weather_code,temperature_2m_max,temperature_2m_min,'
-              'precipitation_sum,precipitation_probability_max',
-          'hourly': 'soil_temperature_0cm,soil_moisture_0_to_1cm',
-          'timezone': 'auto',
-          'forecast_days': 7,
-          'wind_speed_unit': 'kmh',
-        },
-      ),
-      Future.value(null), // placeholder so results[1] = location name future below
-    ]);
+    final double lat;
+    final double lon;
+    final String locationName;
 
-    final locationFuture = _getLocationName(lat, lon);
+    if (gps != null) {
+      lat = gps.lat;
+      lon = gps.lon;
+      locationName = await _getLocationName(lat, lon);
+    } else {
+      lat = _defaultLat;
+      lon = _defaultLon;
+      locationName = _defaultLocationName;
+    }
 
-    final data = results[0]!.data as Map<String, dynamic>;
+    final weatherRes = await _dio.get(
+      'https://api.open-meteo.com/v1/forecast',
+      queryParameters: {
+        'latitude': lat,
+        'longitude': lon,
+        'current': 'temperature_2m,relative_humidity_2m,apparent_temperature,'
+            'precipitation,weather_code,wind_speed_10m,wind_direction_10m,uv_index',
+        'daily': 'weather_code,temperature_2m_max,temperature_2m_min,'
+            'precipitation_sum,precipitation_probability_max',
+        'hourly': 'soil_temperature_0cm,soil_moisture_0_to_1cm',
+        'timezone': 'auto',
+        'forecast_days': 7,
+        'wind_speed_unit': 'kmh',
+      },
+    );
+
+    final data = weatherRes.data as Map<String, dynamic>;
     final cur = data['current'] as Map<String, dynamic>;
     final daily = data['daily'] as Map<String, dynamic>;
     final hourly = data['hourly'] as Map<String, dynamic>;
@@ -245,8 +257,8 @@ class WeatherService {
       weatherCode: (codes[i] as num).toInt(),
       tempMax: (maxT[i] as num).toDouble(),
       tempMin: (minT[i] as num).toDouble(),
-      precipitationSum: (precip[i] ?? 0.0 as num).toDouble(),
-      precipitationProbability: (prob[i] ?? 0 as num).toInt(),
+      precipitationSum: ((precip[i] ?? 0.0) as num).toDouble(),
+      precipitationProbability: ((prob[i] ?? 0) as num).toInt(),
     ));
 
     // Take first non-null hourly soil reading
@@ -254,8 +266,6 @@ class WeatherService {
     final soilMoistures = hourly['soil_moisture_0_to_1cm'] as List<dynamic>;
     final soilTemp = soilTemps.firstWhere((v) => v != null, orElse: () => 25.0);
     final soilMois = soilMoistures.firstWhere((v) => v != null, orElse: () => 0.25);
-
-    final locationName = await locationFuture;
 
     return WeatherData(
       latitude: lat,
