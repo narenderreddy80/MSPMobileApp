@@ -148,7 +148,10 @@ const _defaultLon = 78.4867;
 const _defaultLocationName = 'Hyderabad, Telangana';
 
 class WeatherService {
-  final _dio = Dio();
+  final _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 15),
+  ));
 
   /// Try to get GPS position; returns null if unavailable (no throw).
   Future<({double lat, double lon, String name})?> _tryGetLocation() async {
