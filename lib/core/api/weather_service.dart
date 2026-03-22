@@ -63,12 +63,46 @@ class DailyForecast {
   );
 }
 
+class HourlyForecast {
+  final String time;   // "2025-03-22T14:00"
+  final double temperature;
+  final double humidity;
+  final int weatherCode;
+  final double windSpeed;
+  final int precipitationProbability;
+  final double precipitation;
+  final double uvIndex;
+
+  const HourlyForecast({
+    required this.time,
+    required this.temperature,
+    required this.humidity,
+    required this.weatherCode,
+    required this.windSpeed,
+    required this.precipitationProbability,
+    required this.precipitation,
+    required this.uvIndex,
+  });
+
+  factory HourlyForecast.fromJson(Map<String, dynamic> j) => HourlyForecast(
+    time:                    j['time'] as String,
+    temperature:             (j['temperature']             as num).toDouble(),
+    humidity:                (j['humidity']                as num).toDouble(),
+    weatherCode:             (j['weatherCode']             as num).toInt(),
+    windSpeed:               (j['windSpeed']               as num).toDouble(),
+    precipitationProbability:(j['precipitationProbability'] as num).toInt(),
+    precipitation:           (j['precipitation']           as num).toDouble(),
+    uvIndex:                 (j['uvIndex']                 as num).toDouble(),
+  );
+}
+
 class WeatherData {
   final double latitude;
   final double longitude;
   final String locationName;
   final CurrentWeather current;
   final List<DailyForecast> daily;
+  final List<HourlyForecast> hourly;
   final double soilTemperature;
   final double soilMoisture;
 
@@ -78,6 +112,7 @@ class WeatherData {
     required this.locationName,
     required this.current,
     required this.daily,
+    required this.hourly,
     required this.soilTemperature,
     required this.soilMoisture,
   });
@@ -90,9 +125,16 @@ class WeatherData {
     daily:           (j['daily'] as List<dynamic>)
                        .map((e) => DailyForecast.fromJson(e as Map<String, dynamic>))
                        .toList(),
+    hourly:          (j['hourly'] as List<dynamic>)
+                       .map((e) => HourlyForecast.fromJson(e as Map<String, dynamic>))
+                       .toList(),
     soilTemperature: (j['soilTemperature'] as num).toDouble(),
     soilMoisture:    (j['soilMoisture']    as num).toDouble(),
   );
+
+  /// Returns the 24 hourly entries for a given date string (e.g. "2025-03-22").
+  List<HourlyForecast> hourlyForDate(String date) =>
+      hourly.where((h) => h.time.startsWith(date)).toList();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

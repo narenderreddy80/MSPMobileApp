@@ -101,7 +101,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
           const SizedBox(height: 16),
           _FarmingAdvisoryCard(advisories: advisories),
           const SizedBox(height: 16),
-          _ForecastCard(daily: d.daily),
+          _ForecastCard(daily: d.daily, weatherData: d),
           const SizedBox(height: 16),
           _SoilCard(temperature: d.soilTemperature, moisture: d.soilMoisture),
           const SizedBox(height: 8),
@@ -262,7 +262,8 @@ class _FarmingAdvisoryCard extends StatelessWidget {
 
 class _ForecastCard extends StatelessWidget {
   final List<DailyForecast> daily;
-  const _ForecastCard({required this.daily});
+  final WeatherData weatherData;
+  const _ForecastCard({required this.daily, required this.weatherData});
 
   @override
   Widget build(BuildContext context) {
@@ -273,42 +274,206 @@ class _ForecastCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('7-Day Forecast',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold)),
+            Row(children: [
+              Text('7-Day Forecast',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold)),
+              const SizedBox(width: 6),
+              Text('· tap a day for hourly',
+                style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+            ]),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: days.map((f) {
                 final date = DateTime.parse(f.date);
-                final isToday = date.day == DateTime.now().day;
+                final isToday = date.day == DateTime.now().day &&
+                                date.month == DateTime.now().month;
                 return Expanded(
-                  child: Column(children: [
-                    Text(
-                      isToday ? 'Today' : DateFormat('EEE').format(date),
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                        color: isToday ? AppTheme.primary : null),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _showHourly(context, f, weatherData.hourlyForDate(f.date)),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                      decoration: isToday ? BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                      ) : null,
+                      child: Column(children: [
+                        Text(
+                          isToday ? 'Today' : DateFormat('EEE').format(date),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                            color: isToday ? AppTheme.primary : null),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(weatherEmoji(f.weatherCode),
+                          style: const TextStyle(fontSize: 20)),
+                        const SizedBox(height: 2),
+                        Text('${f.tempMax.toStringAsFixed(0)}°',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text('${f.tempMin.toStringAsFixed(0)}°',
+                          style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+                        if (f.precipitationProbability > 0)
+                          Text('${f.precipitationProbability}%',
+                            style: const TextStyle(fontSize: 10, color: Colors.blueAccent)),
+                      ]),
                     ),
-                    const SizedBox(height: 4),
-                    Text(weatherEmoji(f.weatherCode),
-                      style: const TextStyle(fontSize: 20)),
-                    const SizedBox(height: 2),
-                    Text('${f.tempMax.toStringAsFixed(0)}°',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    Text('${f.tempMin.toStringAsFixed(0)}°',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 11)),
-                    if (f.precipitationProbability > 0)
-                      Text('${f.precipitationProbability}%',
-                        style: const TextStyle(
-                          fontSize: 10, color: Colors.blueAccent)),
-                  ]),
+                  ),
                 );
               }).toList(),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showHourly(BuildContext context, DailyForecast day, List<HourlyForecast> hours) {
+    final date = DateTime.parse(day.date);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _HourlySheet(day: day, date: date, hours: hours),
+    );
+  }
+}
+
+// ── Hourly Bottom Sheet ────────────────────────────────────────────────────────
+
+class _HourlySheet extends StatelessWidget {
+  final DailyForecast day;
+  final DateTime date;
+  final List<HourlyForecast> hours;
+  const _HourlySheet({required this.day, required this.date, required this.hours});
+
+  @override
+  Widget build(BuildContext context) {
+    final isToday = date.day == DateTime.now().day && date.month == DateTime.now().month;
+    final currentHour = DateTime.now().hour;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (_, controller) => Column(
+        children: [
+          // Handle + header
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+            decoration: const BoxDecoration(
+              color: AppTheme.primary,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(children: [
+              Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white38,
+                  borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 10),
+              Row(children: [
+                Text(weatherEmoji(day.weatherCode),
+                  style: const TextStyle(fontSize: 24)),
+                const SizedBox(width: 10),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(
+                    isToday ? 'Today — Hourly Forecast' : '${DateFormat("EEEE, d MMM").format(date)} — Hourly',
+                    style: const TextStyle(color: Colors.white,
+                      fontWeight: FontWeight.bold, fontSize: 15)),
+                  Text('${day.tempMin.toStringAsFixed(0)}° – ${day.tempMax.toStringAsFixed(0)}°  ·  '
+                      '${day.precipitationProbability}% rain',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                ]),
+              ]),
+            ]),
+          ),
+          // Hourly list
+          Expanded(
+            child: hours.isEmpty
+              ? const Center(child: Text('No hourly data available'))
+              : ListView.builder(
+                  controller: controller,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: hours.length,
+                  itemBuilder: (_, i) {
+                    final h = hours[i];
+                    final hourNum = int.tryParse(h.time.split('T').last.split(':').first) ?? 0;
+                    final isCurrent = isToday && hourNum == currentHour;
+                    return _HourlyRow(entry: h, isCurrent: isCurrent);
+                  },
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HourlyRow extends StatelessWidget {
+  final HourlyForecast entry;
+  final bool isCurrent;
+  const _HourlyRow({required this.entry, required this.isCurrent});
+
+  @override
+  Widget build(BuildContext context) {
+    final hourNum = int.tryParse(entry.time.split('T').last.split(':').first) ?? 0;
+    final timeLabel = DateFormat('h a').format(
+      DateTime(2000, 1, 1, hourNum));
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: isCurrent ? BoxDecoration(
+        color: AppTheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+      ) : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(children: [
+          // Time
+          SizedBox(width: 48,
+            child: Text(timeLabel,
+              style: TextStyle(
+                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                color: isCurrent ? AppTheme.primary : null,
+                fontSize: 13))),
+          // Emoji
+          Text(weatherEmoji(entry.weatherCode),
+            style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 10),
+          // Temp
+          SizedBox(width: 44,
+            child: Text('${entry.temperature.toStringAsFixed(0)}°C',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14))),
+          const Spacer(),
+          // Rain chance
+          if (entry.precipitationProbability > 0) ...[
+            const Icon(Icons.umbrella, size: 13, color: Colors.blueAccent),
+            const SizedBox(width: 2),
+            SizedBox(width: 32,
+              child: Text('${entry.precipitationProbability}%',
+                style: const TextStyle(fontSize: 12, color: Colors.blueAccent))),
+          ] else
+            const SizedBox(width: 46),
+          // Wind
+          const Icon(Icons.air, size: 13, color: Colors.grey),
+          const SizedBox(width: 2),
+          SizedBox(width: 52,
+            child: Text('${entry.windSpeed.toStringAsFixed(0)} km/h',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]))),
+          // Humidity
+          const Icon(Icons.water_drop, size: 13, color: Colors.lightBlue),
+          const SizedBox(width: 2),
+          Text('${entry.humidity.toStringAsFixed(0)}%',
+            style: const TextStyle(fontSize: 12, color: Colors.lightBlue)),
+        ]),
       ),
     );
   }
