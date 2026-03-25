@@ -3,6 +3,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/rating_widgets.dart';
+import '../../marketplace/screens/conversations_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,6 +15,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String? _email;
+  String? _userId;
 
   @override
   void initState() {
@@ -22,8 +25,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadProfile() async {
     const storage = FlutterSecureStorage();
-    final email = await storage.read(key: AppConstants.userEmailKey);
-    setState(() => _email = email);
+    final email  = await storage.read(key: AppConstants.userEmailKey);
+    final userId = await storage.read(key: AppConstants.userIdKey);
+    setState(() { _email = email; _userId = userId; });
   }
 
   Future<void> _logout() async {
@@ -68,6 +72,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.pushNamed(context, '/crops')),
             _menuItem(context, Icons.smart_toy, 'AI Advisory', () =>
               Navigator.pushNamed(context, '/advisory')),
+            _menuItem(context, Icons.chat_outlined, 'My Chats', () =>
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const ConversationsScreen()))),
+            const Divider(height: 32),
+
+            // ── My Reviews ────────────────────────────────────────
+            if (_userId != null)
+              Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: UserReviewsSection(
+                  userId: _userId!,
+                  userName: _email ?? 'Me',
+                  showRateButton: false,
+                ),
+              ),
+
             const Divider(height: 32),
             _menuItem(context, Icons.logout, 'Logout', _logout,
               color: AppTheme.error),

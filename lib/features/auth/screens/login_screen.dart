@@ -28,7 +28,11 @@ class _LoginScreenState extends State<LoginScreen> {
       final data = await AuthService().login(_emailCtrl.text.trim(), _passCtrl.text);
       await ApiClient().saveToken(data['token']);
       const storage = FlutterSecureStorage();
-      await storage.write(key: AppConstants.userEmailKey, value: _emailCtrl.text.trim());
+      await Future.wait([
+        storage.write(key: AppConstants.userEmailKey, value: _emailCtrl.text.trim()),
+        if (data['userId'] != null)
+          storage.write(key: AppConstants.userIdKey, value: data['userId'] as String),
+      ]);
       if (mounted) Navigator.pushReplacementNamed(context, '/home');
     } catch (e) {
       setState(() => _error = 'Invalid email or password');
