@@ -257,6 +257,7 @@ class _VoiceAssistantFabState extends State<VoiceAssistantFab>
         Padding(
           padding: const EdgeInsets.only(right: 16, bottom: 16),
           child: FloatingActionButton(
+            heroTag: 'voice_assistant_fab',
             onPressed: _toggle,
             backgroundColor: AppTheme.primary,
             child: AnimatedSwitcher(

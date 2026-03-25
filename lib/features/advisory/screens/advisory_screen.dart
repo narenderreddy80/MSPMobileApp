@@ -92,7 +92,7 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
                             child: Row(
                               children: [
                                 const Icon(Icons.lightbulb_outline,
-                                  color: AppTheme.accent, size: 18),
+                                  color: AppTheme.secondary, size: 18),
                                 const SizedBox(width: 8),
                                 Expanded(child: Text(s)),
                                 const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
@@ -165,6 +165,7 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
                 ),
                 const SizedBox(width: 8),
                 FloatingActionButton.small(
+                  heroTag: 'advisory_fab',
                   onPressed: () => _ask(_ctrl.text),
                   backgroundColor: AppTheme.primary,
                   child: const Icon(Icons.send, color: Colors.white),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../core/api/mandi_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../weather/screens/weather_screen.dart';
@@ -104,21 +106,24 @@ class _WeatherQuickCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text('Today\'s Weather',
-                    style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  SizedBox(height: 4),
-                  Text('32°C  Partly Cloudy',
-                    style: TextStyle(color: Colors.white,
-                      fontSize: 20, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 4),
-                  Text('Hyderabad · Humidity 68%',
-                    style: TextStyle(color: Colors.white70, fontSize: 12)),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text('Today\'s Weather',
+                      style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    SizedBox(height: 4),
+                    Text('32°C  Partly Cloudy',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.white,
+                        fontSize: 20, fontWeight: FontWeight.bold)),
+                    SizedBox(height: 4),
+                    Text('Hyderabad · Humidity 68%',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  ],
+                ),
               ),
-              const Spacer(),
               Column(
                 children: const [
                   Icon(Icons.wb_cloudy, color: Colors.white, size: 48),
@@ -147,6 +152,8 @@ class _MandiTickerCardState extends State<_MandiTickerCard> {
   final _service = MandiService();
   List<MandiPriceDto> _prices = [];
   bool _loading = true;
+  String? _detectedState;
+  bool _isNational = false;
 
   @override
   void initState() {
@@ -154,10 +161,48 @@ class _MandiTickerCardState extends State<_MandiTickerCard> {
     _load();
   }
 
+  Future<String?> _getNearestState() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return null;
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) return null;
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.low,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+      if (placemarks.isEmpty) return null;
+      return placemarks.first.administrativeArea; // e.g. "Telangana"
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _load() async {
     try {
-      final data = await _service.getPrices(limit: 10);
-      if (mounted) setState(() { _prices = data; _loading = false; });
+      final state = await _getNearestState();
+      var data = await _service.getPrices(state: state, limit: 15);
+      bool national = false;
+      // Fall back to national prices if no state-specific data
+      if (data.isEmpty && state != null) {
+        data = await _service.getPrices(limit: 15);
+        national = data.isNotEmpty;
+      }
+      if (mounted) {
+        setState(() {
+          _detectedState = state;
+          _prices = data;
+          _isNational = national;
+          _loading = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -177,9 +222,31 @@ class _MandiTickerCardState extends State<_MandiTickerCard> {
                 children: [
                   const Icon(Icons.trending_up, color: AppTheme.primary, size: 18),
                   const SizedBox(width: 6),
-                  Text('Mandi Prices', style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold)),
-                  const Spacer(),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Mandi Prices',
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold)),
+                        if (_detectedState != null && !_isNational)
+                          Row(children: [
+                            const Icon(Icons.location_on, size: 11, color: AppTheme.primary),
+                            const SizedBox(width: 2),
+                            Text('Near you · $_detectedState',
+                              style: const TextStyle(
+                                fontSize: 10, color: AppTheme.primary)),
+                          ])
+                        else if (_isNational)
+                          Row(children: [
+                            const Icon(Icons.public, size: 11, color: Colors.grey),
+                            const SizedBox(width: 2),
+                            const Text('National prices (no local data)',
+                              style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          ]),
+                      ],
+                    ),
+                  ),
                   const Text('View All →',
                     style: TextStyle(color: AppTheme.primary, fontSize: 12)),
                 ],
@@ -189,7 +256,7 @@ class _MandiTickerCardState extends State<_MandiTickerCard> {
                 const SizedBox(height: 50,
                   child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
               else if (_prices.isEmpty)
-                const Text('No prices available',
+                const Text('No prices available near you',
                   style: TextStyle(color: Colors.grey, fontSize: 12))
               else
                 SingleChildScrollView(
@@ -232,7 +299,7 @@ class _QuickActionsGrid extends StatelessWidget {
   final _actions = const [
     _Action(Icons.biotech, 'Analyze Crop', Colors.green, 0),
     _Action(Icons.history, 'My Reports', Colors.blue, 1),
-    _Action(Icons.forum, 'Community', Colors.orange, 3),
+    _Action(Icons.storefront, 'Buy / Sell', Colors.teal, 2),
     _Action(Icons.person, 'Profile', Colors.purple, 4),
   ];
 
@@ -284,6 +351,9 @@ class _Action {
 
 class _SchemeUpdates extends StatelessWidget {
   final _schemes = const [
+    _Scheme('Buy & Sell on Marketplace',
+      'List your produce or equipment for sale. Browse local buyer listings near you.',
+      Colors.teal, Icons.storefront),
     _Scheme('PM-KISAN Instalment 17',
       'Next instalment expected by Apr 2026. Check beneficiary status on portal.',
       Colors.blue, Icons.account_balance),

@@ -261,4 +261,13 @@ class WeatherService {
 
     return WeatherData.fromJson(res.data as Map<String, dynamic>);
   }
+
+  /// Fetch weather for explicit coordinates (used for saved / searched location).
+  Future<WeatherData> fetchWeatherByCoords(double lat, double lon) async {
+    final res = await _client.dio.get(
+      '/api/Weather',
+      queryParameters: {'lat': lat, 'lon': lon},
+    );
+    return WeatherData.fromJson(res.data as Map<String, dynamic>);
+  }
 }

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../constants/app_constants.dart';
 
@@ -8,6 +9,9 @@ class ApiClient {
 
   late final Dio dio;
   final _storage = const FlutterSecureStorage();
+  GlobalKey<NavigatorState>? _navigatorKey;
+
+  void setNavigatorKey(GlobalKey<NavigatorState> key) => _navigatorKey = key;
 
   ApiClient._internal() {
     dio = Dio(BaseOptions(
@@ -25,7 +29,12 @@ class ApiClient {
         }
         handler.next(options);
       },
-      onError: (error, handler) {
+      onError: (error, handler) async {
+        if (error.response?.statusCode == 401) {
+          await _storage.deleteAll();
+          _navigatorKey?.currentState
+              ?.pushNamedAndRemoveUntil('/login', (_) => false);
+        }
         handler.next(error);
       },
     ));
