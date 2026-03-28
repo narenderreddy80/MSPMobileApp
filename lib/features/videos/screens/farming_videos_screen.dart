@@ -124,11 +124,8 @@ class _FarmingVideosScreenState extends State<FarmingVideosScreen> {
     }
   }
 
-  void _openVideo(VideoItemDto video) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => VideoPlayerScreen(video: video)),
-    );
+  void _openVideo(int index) {
+    VideoPlayerScreen.open(context, _videos, index);
   }
 
   @override
@@ -248,7 +245,7 @@ class _FarmingVideosScreenState extends State<FarmingVideosScreen> {
                                   padding: const EdgeInsets.only(bottom: 10),
                                   child: _VideoCard(
                                     video: _videos[i],
-                                    onTap: () => _openVideo(_videos[i]),
+                                    onTap: () => _openVideo(i),
                                   ),
                                 );
                               },
@@ -481,109 +478,105 @@ class _VideoCard extends StatelessWidget {
                 offset: const Offset(0, 2))
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Thumbnail with play overlay
-            SizedBox(
-              width: 140,
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.horizontal(
-                        left: Radius.circular(10)),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: CachedNetworkImage(
-                        imageUrl: video.thumbnailUrl.isNotEmpty
-                            ? video.thumbnailUrl
-                            : video.thumbnailFallback,
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => Container(
-                            color: Colors.grey.shade200,
-                            child: const Center(
-                                child: Icon(Icons.video_library_outlined,
-                                    color: Colors.grey))),
-                        errorWidget: (_, __, ___) => Container(
-                            color: Colors.grey.shade200,
-                            child: const Center(
-                                child: Icon(Icons.broken_image_outlined,
-                                    color: Colors.grey))),
-                      ),
+            // Thumbnail with play overlay — full width
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(10)),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: CachedNetworkImage(
+                      imageUrl: video.thumbnailUrl.isNotEmpty
+                          ? video.thumbnailUrl
+                          : video.thumbnailFallback,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                              child: Icon(Icons.video_library_outlined,
+                                  color: Colors.grey))),
+                      errorWidget: (_, __, ___) => Container(
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                              child: Icon(Icons.broken_image_outlined,
+                                  color: Colors.grey))),
                     ),
                   ),
-                  // Play button overlay
-                  Positioned.fill(
-                    child: Center(
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.55),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.play_arrow,
-                            color: Colors.white, size: 20),
-                      ),
-                    ),
-                  ),
-                  // Shorts badge
-                  Positioned(
-                    bottom: 4,
-                    right: 4,
+                ),
+                // Play button overlay
+                Positioned.fill(
+                  child: Center(
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
-                        color: Colors.red.shade700,
-                        borderRadius: BorderRadius.circular(3),
+                        color: Colors.black.withValues(alpha: 0.55),
+                        shape: BoxShape.circle,
                       ),
-                      child: const Text('Shorts',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold)),
+                      child: const Icon(Icons.play_arrow,
+                          color: Colors.white, size: 28),
                     ),
                   ),
-                ],
-              ),
+                ),
+                // Duration / Shorts badge
+                Positioned(
+                  bottom: 6,
+                  right: 6,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade700,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: const Text('Shorts',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
             ),
 
-            // Title + channel
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      video.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                          height: 1.3),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(Icons.person_outline,
-                            size: 12, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            video.channelTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 11, color: Colors.grey),
-                          ),
+            // Title + channel below thumbnail
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    video.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                        height: 1.3),
+                  ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      const Icon(Icons.person_outline,
+                          size: 12, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          video.channelTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 11, color: Colors.grey),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],
